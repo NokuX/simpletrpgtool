@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>跑团工具</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            padding: 20px;
+        }
+        input {
+            width: 300px;
+            padding: 10px;
+            margin: 10px 0;
+        }
+        button {
+            padding: 10px 15px;
+            margin-top: 10px;
+        }
+        #output {
+            margin-top: 20px;
+            background: #fff;
+            padding: 15px;
+            border: 1px solid #ccc;
+        }
+        #instruction {
+            margin-top: 20px;
+            background: #fff;
+            padding: 15px;
+            border: 1px solid #ccc;
+        }
+    </style>
+</head>
+<body>
+    <h1>简易跑团工具</h1>
+    <input type="text" id="command" placeholder="输入指令如 .st 斗殴 40 或 .ra 斗殴" />
+    <button onclick="processCommand()">执行</button>
+    <button onclick="clearAll()">清除所有缓存</button>
+    <div id="output"></div>
+    <div id="instruction">
+        <h3>指令列表：</h3>
+        <p><strong>.st [组名] [属性名] [数字]</strong> - 设置属性值（组名可选）。</p>
+        <p><strong>.ra [组名] [属性名]</strong> - 进行属性检定（组名可选）。</p>
+        <p><strong>.pc [组名]</strong> - 列出该组名下所有的属性及其值。</p>
+        <p><strong>.list [pc/st]</strong> - 列出所有组名或属性。</p>
+        <p><strong>.delete [组名/属性名]</strong> - 删除特定组或属性。</p>
+    </div>
+
+    <script>
+        // 从 localStorage 加载初始数据
+        const attributes = JSON.parse(localStorage.getItem('attributes')) || {}; // 用于存储属性和对应的值
+        const groups = JSON.parse(localStorage.getItem('groups')) || {}; // 用于存储组及其属性
+
+        function processCommand() {
+            const command = document.getElementById('command').value.trim();
+            const outputDiv = document.getElementById('output');
+            let response = '';
+
+            if (command.startsWith('.st')) {
+                const parts = command.split(' ');
+                const groupName = parts.length === 4 ? parts[1] : null; // 组名
+                const y = parts.length === 4 ? parts[2] : parts[1]; // 属性名
+                const z = parseInt(parts.length === 4 ? parts[3] : parts[2]); // 属性值
+                
+                if (!isNaN(z)) {
+                    if (groupName) {
+                        if (!groups[groupName]) groups[groupName] = {};
+                        groups[groupName][y] = z;
+                        localStorage.setItem('groups', JSON.stringify(groups)); // 保存到 localStorage
+                        response = `已成功将组[${groupName}]的属性[${y}]更新为[${z}]`;
+                    } else {
+                        attributes[y] = z;
+                        response = `已成功将pl的[${y}]属性更新为[${z}]`;
+                        localStorage.setItem('attributes', JSON.stringify(attributes)); // 保存到 localStorage
+                    }
+                } else {
+                    response = '请输入有效的命令格式：.st [组名] [属性名] [数字] 或 .st [属性名] [数字]';
+                }
+            } else if (command.startsWith('.ra')) {
+                const parts = command.split(' ');
+                const groupName = parts.length === 3 ? parts[1] : null; // 组名
+                const y = parts.length === 3 ? parts[2] : parts[1]; // 属性名
+                let z;
+
+                // 尝试从组中获取属性值，未提供组名时尝试全局属性
+                if (groupName && groups[groupName]) {
+                    z = groups[groupName][y];
+                } else {
+                    z = attributes[y]; // 获取全局属性值
+                }
+
+                if (z !== undefined) {
+                    const x = Math.floor(Math.random() * 100) + 1; // 生成1到100的随机数
+                    let resultText = '';
+                    if (x > z) {
+                        resultText = '失败';
+                        if (x === 100) resultText = '大失败';
+                    } else {
+                        resultText = '成功';
+                        if (x <= z / 5) resultText = '极难成功';
+                        else if (x <= z / 2) resultText = '困难成功';
+                        if (x === 1) resultText = '大成功';
+                    }
+                    response = `pl进行了[${y}]检定，结果为1d100 = ${x}/${z}，[${resultText}]`;
+                } else {
+                    response = `属性[${y}]未找到。`;
+                }
+            } else if (command.startsWith('.pc')) {
+                const parts = command.split(' ');
+                if (parts.length === 2) {
+                    const groupName = parts[1]; // 组名
+                    if (groups[groupName]) {
+                        response = `组[${groupName}]的属性如下：\n`;
+                        for (const key in groups[groupName]) {
+                            response += `${key}: ${groups[groupName][key]}\n`;
+                        }
+                    } else {
+                        response = `组[${groupName}]未找到。`;
+                    }
+                } else {
+                    response = '请输入有效的命令格式：.pc [组名]';
+                }
+            } else if (command.startsWith('.list')) {
+                const parts = command.split(' ');
+                if (parts.length === 2) {
+                    const type = parts[1]; // 类型
+                    if (type === 'pc') {
+                        response = '所有组名如下：\n' + Object.keys(groups).join(', ');
+                    } else if (type === 'st') {
+                        response = '所有属性及其值如下：\n';
+                        const allAttributes = { ...attributes }; // 复制属性
+                        for (const group in groups) {
+                            for (const attr in groups[group]) {
+                                allAttributes[`${group}: ${attr}`] = groups[group][attr]; // 添加组名前缀
+                            }
+                        }
+                        response += Object.entries(allAttributes).map(([key, value]) => `${key}: ${value}`).join(', ');
+                    } else {
+                        response = '无效的类型，使用 pc 或 st。';
+                    }
+                } else {
+                    response = '请输入有效的命令格式：.list [pc/st]';
+                }
+            } else if (command.startsWith('.delete')) {
+                const parts = command.split(' ');
+                if (parts.length === 2) {
+                    const target = parts[1]; // 组名或属性名
+                    if (groups[target]) {
+                        delete groups[target];
+                        localStorage.setItem('groups', JSON.stringify(groups)); // 更新 localStorage
+                        response = `组[${target}]已删除。`;
+                    } else if (attributes[target] !== undefined) {
+                        delete attributes[target];
+                        localStorage.setItem('attributes', JSON.stringify(attributes)); // 更新 localStorage
+                        response = `属性[${target}]已删除。`;
+                    } else {
+                        response = `未找到组[${target}]或属性[${target}]。`;
+                    }
+                } else {
+                    response = '请输入有效的命令格式：.delete [组名/属性名]';
+                }
+            } else {
+                response = '未知的命令。';
+            }
+
+            outputDiv.innerText = response; // 显示结果
+            document.getElementById('command').value = ''; // 清空输入框
+        }
+
+        function clearAll() {
+            localStorage.clear(); // 清除所有缓存
+            Object.keys(attributes).forEach(key => delete attributes[key]); // 清空 attributes 对象
+            Object.keys(groups).forEach(key => delete groups[key]); // 清空 groups 对象
+            document.getElementById('output').innerText = '所有缓存已清除。';
+        }
+    </script>
+</body>
+</html>
